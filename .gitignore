@@ -4,3 +4,4 @@ node_modules
 dist
 package-lock.json
 /generated/prisma
+api-check-results.json

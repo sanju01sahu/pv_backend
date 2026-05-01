@@ -7,6 +7,14 @@ import { AuditAction } from "@prisma/client";
 
 const MAX_FAILED_LOGINS = Number(process.env.MAX_FAILED_LOGINS || 5);
 const LOCKOUT_MINUTES = Number(process.env.LOGIN_LOCKOUT_MINUTES || 15);
+const safeUserSelect = {
+  id: true,
+  name: true,
+  email: true,
+  role: true,
+  managerId: true,
+  createdAt: true
+} as const;
 
 export const userService = {
   async login(email: string, password: string, ipAddress?: string) {
@@ -93,17 +101,32 @@ export const userService = {
   },
 
   async createUser(input: { name: string; email: string; password: string; role: Role; managerId?: string }) {
+    const { password, ...userData } = input;
+    const managerId = userData.managerId ?? null;
     const passwordHash = await bcrypt.hash(input.password, 10);
-    return prisma.user.create({ data: { ...input, passwordHash } });
+    return prisma.user.create({
+      data: { ...userData, managerId, passwordHash },
+      select: safeUserSelect
+    });
   },
 
   async listUsers() {
-    return prisma.user.findMany({ include: { manager: true, team: true } });
+    return prisma.user.findMany({
+      select: {
+        ...safeUserSelect,
+        manager: { select: safeUserSelect },
+        team: { select: safeUserSelect }
+      }
+    });
   },
 
   async updateUser(id: string, patch: { name?: string; managerId?: string | null }, performedBy: string) {
     const before = await prisma.user.findUnique({ where: { id } });
-    const updated = await prisma.user.update({ where: { id }, data: patch });
+    const updated = await prisma.user.update({
+      where: { id },
+      data: patch,
+      select: safeUserSelect
+    });
 
     if (before && before.managerId !== updated.managerId) {
       await createAuditLog({

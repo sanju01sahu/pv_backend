@@ -15,7 +15,7 @@ export const signAccessToken = (payload: AuthToken) =>
   jwt.sign(payload, accessSecret, { expiresIn: "15m", issuer, audience });
 
 export const signRefreshToken = (payload: AuthToken) =>
-  jwt.sign(payload, refreshSecret, { expiresIn: "30d", issuer, audience });
+  jwt.sign(payload, refreshSecret, { expiresIn: "30d", issuer, audience, jwtid: crypto.randomUUID() });
 
 export const verifyAccessToken = (token: string) =>
   jwt.verify(token, accessSecret, { issuer, audience }) as AuthToken;

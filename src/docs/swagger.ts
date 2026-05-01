@@ -46,15 +46,20 @@ const options: swaggerJsdoc.Options = {
         LoginRequest: {
           type: "object",
           properties: {
-            email: { type: "string", format: "email" },
-            password: { type: "string" }
+            email: { type: "string", format: "email", example: "admin@pv.local" },
+            password: { type: "string", example: "Admin123!Secure" }
           },
-          required: ["email", "password"]
+          required: ["email", "password"],
+          example: {
+            email: "admin@pv.local",
+            password: "Admin123!Secure"
+          }
         },
         RefreshTokenRequest: {
           type: "object",
-          properties: { refreshToken: { type: "string" } },
-          required: ["refreshToken"]
+          properties: { refreshToken: { type: "string", example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." } },
+          required: ["refreshToken"],
+          example: { refreshToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." }
         },
         LoginLockedResponse: {
           type: "object",
@@ -68,30 +73,49 @@ const options: swaggerJsdoc.Options = {
           type: "object",
           properties: {
             id: { type: "string", format: "uuid" },
-            name: { type: "string" },
-            email: { type: "string", format: "email" },
-            role: { type: "string", enum: ["ADMIN", "AREA_MANAGER", "AGENT"] },
-            managerId: { type: "string", format: "uuid", nullable: true },
-            createdAt: { type: "string", format: "date-time" }
+            name: { type: "string", example: "Platform Admin" },
+            email: { type: "string", format: "email", example: "admin@pv.local" },
+            role: { type: "string", enum: ["ADMIN", "AREA_MANAGER", "AGENT"], example: "ADMIN" },
+            managerId: { type: "string", format: "uuid", nullable: true, example: null },
+            createdAt: { type: "string", format: "date-time", example: "2026-05-02T09:30:00.000Z" }
           },
-          required: ["id", "name", "email", "role", "createdAt"]
+          required: ["id", "name", "email", "role", "createdAt"],
+          example: {
+            id: "9f7e6f63-946c-4a91-ae91-4bded2a5376d",
+            name: "Platform Admin",
+            email: "admin@pv.local",
+            role: "ADMIN",
+            managerId: null,
+            createdAt: "2026-05-02T09:30:00.000Z"
+          }
         },
         UserCreateRequest: {
           type: "object",
           properties: {
-            name: { type: "string", minLength: 2 },
-            email: { type: "string", format: "email" },
+            name: { type: "string", minLength: 2, example: "Aditi Sharma" },
+            email: { type: "string", format: "email", example: "aditi.sharma@example.com" },
             password: { type: "string", minLength: 12, description: "Must include uppercase, lowercase, number, and special character" },
-            role: { type: "string", enum: ["ADMIN", "AREA_MANAGER", "AGENT"] },
-            managerId: { type: "string", format: "uuid" }
+            role: { type: "string", enum: ["ADMIN", "AREA_MANAGER", "AGENT"], example: "AGENT" },
+            managerId: { type: "string", format: "uuid", example: "3a5a44d2-5082-41ed-9d9f-22f9f4d25b5e" }
           },
-          required: ["name", "email", "password", "role"]
+          required: ["name", "email", "password", "role"],
+          example: {
+            name: "Aditi Sharma",
+            email: "aditi.sharma@example.com",
+            password: "SuperString123!",
+            role: "AGENT",
+            managerId: "3a5a44d2-5082-41ed-9d9f-22f9f4d25b5e"
+          }
         },
         UserPatchRequest: {
           type: "object",
           properties: {
-            name: { type: "string" },
-            managerId: { type: "string", format: "uuid", nullable: true }
+            name: { type: "string", example: "Aditi S." },
+            managerId: { type: "string", format: "uuid", nullable: true, example: "3a5a44d2-5082-41ed-9d9f-22f9f4d25b5e" }
+          },
+          example: {
+            name: "Aditi S.",
+            managerId: "3a5a44d2-5082-41ed-9d9f-22f9f4d25b5e"
           }
         },
         UserWithHierarchy: {
@@ -110,40 +134,63 @@ const options: swaggerJsdoc.Options = {
           type: "object",
           properties: {
             id: { type: "string", format: "uuid" },
-            name: { type: "string" },
-            createdAt: { type: "string", format: "date-time" }
+            name: { type: "string", example: "Residential Rooftop 5kW" },
+            createdAt: { type: "string", format: "date-time", example: "2026-05-02T09:30:00.000Z" }
           },
-          required: ["id", "name", "createdAt"]
+          required: ["id", "name", "createdAt"],
+          example: {
+            id: "2be591f8-4ff9-4dce-bb3d-9f863fddf5c5",
+            name: "Residential Rooftop 5kW",
+            createdAt: "2026-05-02T09:30:00.000Z"
+          }
         },
         SolutionCreateRequest: {
           type: "object",
-          properties: { name: { type: "string", minLength: 1 } },
-          required: ["name"]
+          properties: { name: { type: "string", minLength: 1, example: "Residential Rooftop 5kW" } },
+          required: ["name"],
+          example: { name: "Residential Rooftop 5kW" }
         },
         SolutionVersion: {
           type: "object",
           properties: {
             id: { type: "string", format: "uuid" },
             solutionId: { type: "string", format: "uuid" },
-            price: { type: "number" },
-            baseCommission: { type: "number" },
-            validFrom: { type: "string", format: "date-time" },
-            validTo: { type: "string", format: "date-time", nullable: true },
+            price: { type: "number", example: 125000 },
+            baseCommission: { type: "number", example: 7500 },
+            validFrom: { type: "string", format: "date-time", example: "2026-05-01T00:00:00.000Z" },
+            validTo: { type: "string", format: "date-time", nullable: true, example: "2026-12-31T23:59:59.000Z" },
             createdBy: { type: "string", format: "uuid" },
-            createdAt: { type: "string", format: "date-time" }
+            createdAt: { type: "string", format: "date-time", example: "2026-05-02T09:30:00.000Z" }
           },
-          required: ["id", "solutionId", "price", "baseCommission", "validFrom", "createdBy", "createdAt"]
+          required: ["id", "solutionId", "price", "baseCommission", "validFrom", "createdBy", "createdAt"],
+          example: {
+            id: "c0f191b7-2d4c-4d7f-bae2-e6b4d636c9e7",
+            solutionId: "2be591f8-4ff9-4dce-bb3d-9f863fddf5c5",
+            price: 125000,
+            baseCommission: 7500,
+            validFrom: "2026-05-01T00:00:00.000Z",
+            validTo: "2026-12-31T23:59:59.000Z",
+            createdBy: "9f7e6f63-946c-4a91-ae91-4bded2a5376d",
+            createdAt: "2026-05-02T09:30:00.000Z"
+          }
         },
         SolutionVersionCreateRequest: {
           type: "object",
           properties: {
-            price: { type: "number", exclusiveMinimum: 0 },
-            baseCommission: { type: "number", minimum: 0 },
-            validFrom: { type: "string", format: "date-time" },
-            validTo: { type: "string", format: "date-time" },
-            retroactive: { type: "boolean", default: false }
+            price: { type: "number", exclusiveMinimum: 0, example: 125000 },
+            baseCommission: { type: "number", minimum: 0, example: 7500 },
+            validFrom: { type: "string", format: "date-time", example: "2026-05-01T00:00:00.000Z" },
+            validTo: { type: "string", format: "date-time", example: "2026-12-31T23:59:59.000Z" },
+            retroactive: { type: "boolean", default: false, example: false }
           },
-          required: ["price", "baseCommission", "validFrom"]
+          required: ["price", "baseCommission", "validFrom"],
+          example: {
+            price: 125000,
+            baseCommission: 7500,
+            validFrom: "2026-05-01T00:00:00.000Z",
+            validTo: "2026-12-31T23:59:59.000Z",
+            retroactive: false
+          }
         },
         SolutionVersionCreateResponse: {
           type: "object",
@@ -160,23 +207,30 @@ const options: swaggerJsdoc.Options = {
             id: { type: "string", format: "uuid" },
             agentId: { type: "string", format: "uuid" },
             solutionVersionId: { type: "string", format: "uuid" },
-            customerDetails: { type: "object", additionalProperties: true },
-            installationDate: { type: "string", format: "date-time" },
-            status: { type: "string", enum: ["DRAFT", "ACTIVE", "COMPLETED", "CANCELLED"] },
-            createdAt: { type: "string", format: "date-time" }
+            customerDetails: { type: "object", additionalProperties: true, example: { name: "Ravi Kumar", phone: "+91-9876543210", city: "Hyderabad" } },
+            installationDate: { type: "string", format: "date-time", example: "2026-05-15T00:00:00.000Z" },
+            status: { type: "string", enum: ["DRAFT", "ACTIVE", "COMPLETED", "CANCELLED"], example: "ACTIVE" },
+            createdAt: { type: "string", format: "date-time", example: "2026-05-02T09:30:00.000Z" }
           },
           required: ["id", "agentId", "solutionVersionId", "customerDetails", "installationDate", "status", "createdAt"]
         },
         ContractCreateRequest: {
           type: "object",
           properties: {
-            solutionId: { type: "string", format: "uuid" },
-            customerDetails: { type: "object", additionalProperties: true },
-            installationDate: { type: "string", format: "date-time" },
-            status: { type: "string", enum: ["DRAFT", "ACTIVE", "COMPLETED", "CANCELLED"], default: "ACTIVE" },
-            agentId: { type: "string", format: "uuid", description: "Required for non-AGENT callers" }
+            solutionId: { type: "string", format: "uuid", example: "2be591f8-4ff9-4dce-bb3d-9f863fddf5c5" },
+            customerDetails: { type: "object", additionalProperties: true, example: { name: "Ravi Kumar", phone: "+91-9876543210", city: "Hyderabad" } },
+            installationDate: { type: "string", format: "date-time", example: "2026-05-15T00:00:00.000Z" },
+            status: { type: "string", enum: ["DRAFT", "ACTIVE", "COMPLETED", "CANCELLED"], default: "ACTIVE", example: "ACTIVE" },
+            agentId: { type: "string", format: "uuid", description: "Required for non-AGENT callers", example: "7e23d6e8-8e0f-44fa-8ff1-3db8fca29d2f" }
           },
-          required: ["solutionId", "customerDetails", "installationDate"]
+          required: ["solutionId", "customerDetails", "installationDate"],
+          example: {
+            solutionId: "2be591f8-4ff9-4dce-bb3d-9f863fddf5c5",
+            customerDetails: { name: "Ravi Kumar", phone: "+91-9876543210", city: "Hyderabad" },
+            installationDate: "2026-05-15T00:00:00.000Z",
+            status: "ACTIVE",
+            agentId: "7e23d6e8-8e0f-44fa-8ff1-3db8fca29d2f"
+          }
         },
         Commission: {
           type: "object",
@@ -184,9 +238,9 @@ const options: swaggerJsdoc.Options = {
             id: { type: "string", format: "uuid" },
             contractId: { type: "string", format: "uuid" },
             userId: { type: "string", format: "uuid" },
-            amount: { type: "number" },
-            type: { type: "string", enum: ["BASE", "BONUS"] },
-            createdAt: { type: "string", format: "date-time" }
+            amount: { type: "number", example: 7500 },
+            type: { type: "string", enum: ["BASE", "BONUS"], example: "BASE" },
+            createdAt: { type: "string", format: "date-time", example: "2026-05-02T09:30:00.000Z" }
           },
           required: ["id", "contractId", "userId", "amount", "type", "createdAt"]
         },
@@ -196,7 +250,8 @@ const options: swaggerJsdoc.Options = {
             year: { type: "integer", minimum: 2000 },
             month: { type: "integer", minimum: 1, maximum: 12 }
           },
-          required: ["year", "month"]
+          required: ["year", "month"],
+          example: { year: 2026, month: 5 }
         },
         MonthlyBonusRunResponse: {
           type: "object",
@@ -211,9 +266,9 @@ const options: swaggerJsdoc.Options = {
           properties: {
             id: { type: "string", format: "uuid" },
             userId: { type: "string", format: "uuid" },
-            totalAmount: { type: "number" },
-            status: { type: "string", enum: ["PENDING", "PARTIALLY_PAID", "FULLY_PAID", "DISPUTED", "CANCELLED"] },
-            createdAt: { type: "string", format: "date-time" }
+            totalAmount: { type: "number", example: 25000 },
+            status: { type: "string", enum: ["PENDING", "PARTIALLY_PAID", "FULLY_PAID", "DISPUTED", "CANCELLED"], example: "PENDING" },
+            createdAt: { type: "string", format: "date-time", example: "2026-05-02T09:30:00.000Z" }
           },
           required: ["id", "userId", "totalAmount", "status", "createdAt"]
         },
@@ -222,23 +277,28 @@ const options: swaggerJsdoc.Options = {
           properties: {
             id: { type: "string", format: "uuid" },
             paymentId: { type: "string", format: "uuid" },
-            amount: { type: "number" },
-            method: { type: "string", enum: ["BANK_TRANSFER", "UPI", "CASH", "CARD", "OTHER"] },
-            referenceNumber: { type: "string", nullable: true },
-            proofUrl: { type: "string", format: "uri", nullable: true },
-            adminNote: { type: "string", nullable: true },
-            createdAt: { type: "string", format: "date-time" }
+            amount: { type: "number", example: 10000 },
+            method: { type: "string", enum: ["BANK_TRANSFER", "UPI", "CASH", "CARD", "OTHER"], example: "BANK_TRANSFER" },
+            referenceNumber: { type: "string", nullable: true, example: "TXN-2026-0001" },
+            proofUrl: { type: "string", format: "uri", nullable: true, example: "https://example.com/proofs/payment-proof-0001.pdf" },
+            adminNote: { type: "string", nullable: true, example: "First installment released" },
+            createdAt: { type: "string", format: "date-time", example: "2026-05-02T09:30:00.000Z" }
           },
           required: ["id", "paymentId", "amount", "method", "createdAt"]
         },
         PaymentCreateRequest: {
           type: "object",
           properties: {
-            userId: { type: "string", format: "uuid" },
-            totalAmount: { type: "number", exclusiveMinimum: 0 },
-            status: { type: "string", enum: ["PENDING", "DISPUTED", "CANCELLED"] }
+            userId: { type: "string", format: "uuid", example: "7e23d6e8-8e0f-44fa-8ff1-3db8fca29d2f" },
+            totalAmount: { type: "number", exclusiveMinimum: 0, example: 25000 },
+            status: { type: "string", enum: ["PENDING", "DISPUTED", "CANCELLED"], example: "PENDING" }
           },
-          required: ["userId", "totalAmount"]
+          required: ["userId", "totalAmount"],
+          example: {
+            userId: "7e23d6e8-8e0f-44fa-8ff1-3db8fca29d2f",
+            totalAmount: 25000,
+            status: "PENDING"
+          }
         },
         PaymentCreateResponse: {
           allOf: [
@@ -250,12 +310,19 @@ const options: swaggerJsdoc.Options = {
           type: "object",
           properties: {
             amount: { type: "number", exclusiveMinimum: 0 },
-            method: { type: "string", enum: ["BANK_TRANSFER", "UPI", "CASH", "CARD", "OTHER"] },
-            referenceNumber: { type: "string" },
-            proofUrl: { type: "string", format: "uri" },
-            adminNote: { type: "string" }
+            method: { type: "string", enum: ["BANK_TRANSFER", "UPI", "CASH", "CARD", "OTHER"], example: "BANK_TRANSFER" },
+            referenceNumber: { type: "string", example: "TXN-2026-0001" },
+            proofUrl: { type: "string", format: "uri", example: "https://example.com/proofs/payment-proof-0001.pdf" },
+            adminNote: { type: "string", example: "First installment released" }
           },
-          required: ["amount", "method"]
+          required: ["amount", "method"],
+          example: {
+            amount: 10000,
+            method: "BANK_TRANSFER",
+            referenceNumber: "TXN-2026-0001",
+            proofUrl: "https://example.com/proofs/payment-proof-0001.pdf",
+            adminNote: "First installment released"
+          }
         },
         PaymentTransactionCreateResponse: {
           type: "object",
@@ -435,7 +502,7 @@ const options: swaggerJsdoc.Options = {
         patch: {
           tags: ["Users"],
           summary: "Update user",
-          parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+          parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid", example: "7e23d6e8-8e0f-44fa-8ff1-3db8fca29d2f" } }],
           requestBody: {
             required: true,
             content: { "application/json": { schema: { $ref: "#/components/schemas/UserPatchRequest" } } }
@@ -464,7 +531,7 @@ const options: swaggerJsdoc.Options = {
         post: {
           tags: ["Solutions"],
           summary: "Create version",
-          parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+          parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid", example: "2be591f8-4ff9-4dce-bb3d-9f863fddf5c5" } }],
           requestBody: {
             required: true,
             content: { "application/json": { schema: { $ref: "#/components/schemas/SolutionVersionCreateRequest" } } }
@@ -478,7 +545,7 @@ const options: swaggerJsdoc.Options = {
         get: {
           tags: ["Solutions"],
           summary: "List versions",
-          parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+          parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid", example: "2be591f8-4ff9-4dce-bb3d-9f863fddf5c5" } }],
           responses: {
             "200": { description: "List", content: { "application/json": { schema: { type: "array", items: { $ref: "#/components/schemas/SolutionVersion" } } } } }
           }
@@ -517,7 +584,7 @@ const options: swaggerJsdoc.Options = {
         get: {
           tags: ["Commissions"],
           summary: "List commissions by user",
-          parameters: [{ name: "userId", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+          parameters: [{ name: "userId", in: "path", required: true, schema: { type: "string", format: "uuid", example: "7e23d6e8-8e0f-44fa-8ff1-3db8fca29d2f" } }],
           responses: {
             "200": { description: "List", content: { "application/json": { schema: { type: "array", items: { $ref: "#/components/schemas/Commission" } } } } }
           }
@@ -560,7 +627,7 @@ const options: swaggerJsdoc.Options = {
         post: {
           tags: ["Payments"],
           summary: "Add payment transaction",
-          parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+          parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid", example: "4d3aa857-8b9f-4ed9-83b9-72d4f31a7780" } }],
           requestBody: {
             required: true,
             content: { "application/json": { schema: { $ref: "#/components/schemas/PaymentTransactionCreateRequest" } } }
