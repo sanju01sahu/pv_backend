@@ -1,0 +1,169 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  AREA_MANAGER
+  AGENT
+}
+
+enum ContractStatus {
+  DRAFT
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum CommissionType {
+  BASE
+  BONUS
+}
+
+enum PaymentStatus {
+  PENDING
+  PARTIALLY_PAID
+  FULLY_PAID
+  DISPUTED
+  CANCELLED
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+}
+
+enum PaymentMethod {
+  BANK_TRANSFER
+  UPI
+  CASH
+  CARD
+  OTHER
+}
+
+model User {
+  id           String      @id @default(uuid())
+  name         String
+  email        String      @unique
+  passwordHash String
+  role         Role
+  managerId    String?
+  manager      User?       @relation("UserHierarchy", fields: [managerId], references: [id])
+  team         User[]      @relation("UserHierarchy")
+  createdAt    DateTime    @default(now())
+  contracts    Contract[]
+  commissions  Commission[]
+  payments     Payment[]
+  audits       AuditLog[]  @relation("AuditPerformedBy")
+  versions     SolutionVersion[]
+  refreshTokens RefreshToken[]
+  loginAttempts LoginAttempt[]
+}
+
+model Solution {
+  id        String            @id @default(uuid())
+  name      String            @unique
+  createdAt DateTime          @default(now())
+  versions  SolutionVersion[]
+}
+
+model SolutionVersion {
+  id             String      @id @default(uuid())
+  solutionId     String
+  solution       Solution    @relation(fields: [solutionId], references: [id])
+  price          Decimal     @db.Decimal(12, 2)
+  baseCommission Decimal     @db.Decimal(12, 2)
+  validFrom      DateTime
+  validTo        DateTime?
+  createdBy      String
+  creator        User        @relation(fields: [createdBy], references: [id])
+  createdAt      DateTime    @default(now())
+  contracts      Contract[]
+}
+
+model Contract {
+  id                String          @id @default(uuid())
+  agentId            String
+  agent              User            @relation(fields: [agentId], references: [id])
+  solutionVersionId  String
+  solutionVersion    SolutionVersion @relation(fields: [solutionVersionId], references: [id])
+  customerDetails    Json
+  installationDate   DateTime
+  status             ContractStatus
+  createdAt          DateTime        @default(now())
+  commissions        Commission[]
+}
+
+model Commission {
+  id         String         @id @default(uuid())
+  contractId String
+  contract   Contract       @relation(fields: [contractId], references: [id])
+  userId     String
+  user       User           @relation(fields: [userId], references: [id])
+  amount     Decimal        @db.Decimal(12, 2)
+  type       CommissionType
+  createdAt  DateTime       @default(now())
+}
+
+model Payment {
+  id           String               @id @default(uuid())
+  userId        String
+  user          User                @relation(fields: [userId], references: [id])
+  totalAmount   Decimal             @db.Decimal(12, 2)
+  status        PaymentStatus       @default(PENDING)
+  createdAt     DateTime            @default(now())
+  transactions  PaymentTransaction[]
+}
+
+model PaymentTransaction {
+  id              String        @id @default(uuid())
+  paymentId       String
+  payment         Payment       @relation(fields: [paymentId], references: [id])
+  amount          Decimal       @db.Decimal(12, 2)
+  method          PaymentMethod
+  referenceNumber String?
+  proofUrl        String?
+  adminNote       String?
+  createdAt       DateTime      @default(now())
+}
+
+model AuditLog {
+  id          String      @id @default(uuid())
+  entityType  String
+  entityId    String
+  action      AuditAction
+  oldValue    Json?
+  newValue    Json?
+  performedBy String
+  performer   User        @relation("AuditPerformedBy", fields: [performedBy], references: [id])
+  timestamp   DateTime    @default(now())
+
+  @@index([entityType, entityId])
+}
+
+model RefreshToken {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  tokenHash  String   @unique
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  createdAt  DateTime @default(now())
+}
+
+model LoginAttempt {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  failedCount Int      @default(0)
+  lockedUntil DateTime?
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId])
+}
