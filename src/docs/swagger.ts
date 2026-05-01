@@ -1,6 +1,12 @@
 import swaggerJsdoc from "swagger-jsdoc";
 
 const jsonContent = { "application/json": { schema: { type: "object", additionalProperties: true } } };
+const port = process.env.PORT || "3000";
+const serverUrl =
+  process.env.SWAGGER_SERVER_URL ||
+  (process.env.NODE_ENV === "production"
+    ? "https://pv-backend-7aff.onrender.com"
+    : `http://localhost:${port}`);
 
 const options: swaggerJsdoc.Options = {
   definition: {
@@ -9,7 +15,7 @@ const options: swaggerJsdoc.Options = {
       title: "Photovoltaic Sales Network Management Platform API",
       version: "1.0.0"
     },
-    servers: [{ url: "http://localhost:3000" }],
+    servers: [{ url: serverUrl }],
     components: {
       securitySchemes: {
         bearerAuth: {
