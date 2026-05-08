@@ -218,7 +218,7 @@ describe("Section 5 business rules", () => {
 
     const listRes = await request(app).get("/payments").set("Authorization", `Bearer ${adminToken}`);
     expect(listRes.status).toBe(200);
-    const listed = listRes.body.find((p: { id: string }) => p.id === payRes.body.id);
+    const listed = listRes.body.items.find((p: { id: string }) => p.id === payRes.body.id);
     expect(listed.effectiveStatus).toBe(PaymentStatus.FULLY_PAID);
 
     const disputedRes = await request(app)
@@ -234,9 +234,9 @@ describe("Section 5 business rules", () => {
     const disputedPayment = await prisma.payment.findUnique({ where: { id: disputedRes.body.id } });
     expect(disputedPayment?.status).toBe(PaymentStatus.DISPUTED);
 
-    const listedDisputed = (await request(app).get("/payments").set("Authorization", `Bearer ${adminToken}`)).body.find(
-      (p: { id: string }) => p.id === disputedRes.body.id
-    );
+    const listedDisputed = (
+      await request(app).get("/payments").set("Authorization", `Bearer ${adminToken}`)
+    ).body.items.find((p: { id: string }) => p.id === disputedRes.body.id);
     expect(listedDisputed.effectiveStatus).toBe(PaymentStatus.DISPUTED);
   }, 30000);
 });

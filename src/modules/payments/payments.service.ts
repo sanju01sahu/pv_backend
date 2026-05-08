@@ -2,6 +2,7 @@ import { AuditAction, PaymentMethod, PaymentStatus } from "@prisma/client";
 import { Decimal } from "@prisma/client/runtime/library";
 import { prisma } from "../../lib/prisma.js";
 import { createAuditLog } from "../../services/audit.service.js";
+import { ListQueryOptions, toPaginatedResponse } from "../../lib/pagination.js";
 
 export function derivePaymentStatus(total: Decimal, paid: Decimal, forced?: PaymentStatus | null) {
   if (forced === PaymentStatus.CANCELLED || forced === PaymentStatus.DISPUTED) return forced;
@@ -36,8 +37,36 @@ export const paymentsService = {
     return { tx, payment };
   },
 
-  async listPayments() {
-    const payments = await prisma.payment.findMany({ include: { transactions: true, user: true } });
-    return payments.map(withEffectiveStatus);
+  async listPayments(options: ListQueryOptions) {
+    const statusMatch = Object.values(PaymentStatus).find((status) => status === options.search.toUpperCase());
+    const where = options.search
+      ? {
+          OR: [
+            { id: { contains: options.search, mode: "insensitive" as const } },
+            { userId: { contains: options.search, mode: "insensitive" as const } },
+            { user: { name: { contains: options.search, mode: "insensitive" as const } } },
+            { user: { email: { contains: options.search, mode: "insensitive" as const } } },
+            ...(statusMatch ? [{ status: statusMatch }] : [])
+          ]
+        }
+      : undefined;
+
+    const [payments, total] = await prisma.$transaction([
+      prisma.payment.findMany({
+        where,
+        include: { transactions: true, user: true },
+        orderBy: { createdAt: "desc" },
+        skip: options.skip,
+        take: options.limit
+      }),
+      prisma.payment.count({ where })
+    ]);
+
+    return toPaginatedResponse(
+      payments.map(withEffectiveStatus),
+      total,
+      options.page,
+      options.limit
+    );
   }
 };

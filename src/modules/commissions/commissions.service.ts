@@ -3,14 +3,65 @@ import { Decimal } from "@prisma/client/runtime/library";
 import { prisma } from "../../lib/prisma.js";
 import { createAuditLog } from "../../services/audit.service.js";
 import { AuditAction } from "@prisma/client";
+import { ListQueryOptions, toPaginatedResponse } from "../../lib/pagination.js";
 
 export const commissionsService = {
-  async listAll() {
-    return prisma.commission.findMany({ include: { user: true, contract: true } });
+  async listAll(options: ListQueryOptions) {
+    const typeMatch = Object.values(CommissionType).find((type) => type === options.search.toUpperCase());
+    const where = options.search
+      ? {
+          OR: [
+            { id: { contains: options.search, mode: "insensitive" as const } },
+            { contractId: { contains: options.search, mode: "insensitive" as const } },
+            { userId: { contains: options.search, mode: "insensitive" as const } },
+            { user: { name: { contains: options.search, mode: "insensitive" as const } } },
+            { user: { email: { contains: options.search, mode: "insensitive" as const } } },
+            ...(typeMatch ? [{ type: typeMatch }] : [])
+          ]
+        }
+      : undefined;
+
+    const [items, total] = await prisma.$transaction([
+      prisma.commission.findMany({
+        where,
+        include: { user: true, contract: true },
+        orderBy: { createdAt: "desc" },
+        skip: options.skip,
+        take: options.limit
+      }),
+      prisma.commission.count({ where })
+    ]);
+
+    return toPaginatedResponse(items, total, options.page, options.limit);
   },
 
-  async listByUser(userId: string) {
-    return prisma.commission.findMany({ where: { userId }, include: { contract: true } });
+  async listByUser(userId: string, options: ListQueryOptions) {
+    const typeMatch = Object.values(CommissionType).find((type) => type === options.search.toUpperCase());
+    const where = {
+      userId,
+      ...(options.search
+        ? {
+            OR: [
+              { id: { contains: options.search, mode: "insensitive" as const } },
+              { contractId: { contains: options.search, mode: "insensitive" as const } },
+              ...(typeMatch ? [{ type: typeMatch }] : [])
+            ]
+          }
+        : {})
+    };
+
+    const [items, total] = await prisma.$transaction([
+      prisma.commission.findMany({
+        where,
+        include: { contract: true, user: true },
+        orderBy: { createdAt: "desc" },
+        skip: options.skip,
+        take: options.limit
+      }),
+      prisma.commission.count({ where })
+    ]);
+
+    return toPaginatedResponse(items, total, options.page, options.limit);
   },
 
   async runMonthlyBonus(year: number, month: number, performedBy = "system") {

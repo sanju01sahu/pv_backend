@@ -3,6 +3,7 @@ import { ContractStatus } from "@prisma/client";
 import { z } from "zod";
 import { AuthRequest } from "../../middleware/auth.js";
 import { contractsService } from "./contracts.service.js";
+import { parseListQuery } from "../../lib/pagination.js";
 
 const createSchema = z.object({
   solutionId: z.string().uuid(),
@@ -21,6 +22,6 @@ export const contractsController = {
 
   async list(req: Request, res: Response) {
     const user = (req as AuthRequest).user!;
-    return res.json(await contractsService.listContracts(user.role, user.userId));
+    return res.json(await contractsService.listContracts(user.role, user.userId, parseListQuery(req.query)));
   }
 };

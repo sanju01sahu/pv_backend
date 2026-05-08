@@ -3,6 +3,7 @@ import { Role } from "@prisma/client";
 import { z } from "zod";
 import { userService } from "./users.service.js";
 import { AuthRequest } from "../../middleware/auth.js";
+import { parseListQuery } from "../../lib/pagination.js";
 
 const loginSchema = z.object({ email: z.string().email(), password: z.string() });
 const refreshSchema = z.object({ refreshToken: z.string().min(20) });
@@ -50,8 +51,8 @@ export const userController = {
     return res.status(201).json(user);
   },
 
-  async list(_req: Request, res: Response) {
-    return res.json(await userService.listUsers());
+  async list(req: Request, res: Response) {
+    return res.json(await userService.listUsers(parseListQuery(req.query)));
   },
 
   async update(req: Request, res: Response) {

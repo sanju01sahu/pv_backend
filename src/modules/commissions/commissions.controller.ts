@@ -2,14 +2,15 @@ import { Request, Response } from "express";
 import { z } from "zod";
 import { commissionsService } from "./commissions.service.js";
 import { AuthRequest } from "../../middleware/auth.js";
+import { parseListQuery } from "../../lib/pagination.js";
 
 export const commissionsController = {
-  async list(_req: Request, res: Response) {
-    return res.json(await commissionsService.listAll());
+  async list(req: Request, res: Response) {
+    return res.json(await commissionsService.listAll(parseListQuery(req.query)));
   },
 
   async listByUser(req: Request, res: Response) {
-    return res.json(await commissionsService.listByUser(String(req.params.userId)));
+    return res.json(await commissionsService.listByUser(String(req.params.userId), parseListQuery(req.query)));
   },
 
   async runMonthlyBonus(req: Request, res: Response) {

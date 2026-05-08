@@ -1,6 +1,7 @@
-import { AuditAction, CommissionType, ContractStatus, Role } from "@prisma/client";
+import { AuditAction, CommissionType, ContractStatus, Prisma, Role } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 import { createAuditLog } from "../../services/audit.service.js";
+import { ListQueryOptions, toPaginatedResponse } from "../../lib/pagination.js";
 
 export const contractsService = {
   async createContract(input: {
@@ -43,8 +44,37 @@ export const contractsService = {
     return contract;
   },
 
-  async listContracts(callerRole: Role, callerUserId: string) {
-    const where = callerRole === Role.AGENT ? { agentId: callerUserId } : {};
-    return prisma.contract.findMany({ where, include: { solutionVersion: true, commissions: true } });
+  async listContracts(callerRole: Role, callerUserId: string, options: ListQueryOptions) {
+    const where: Prisma.ContractWhereInput = callerRole === Role.AGENT ? { agentId: callerUserId } : {};
+
+    if (options.search) {
+      const statusMatch = Object.values(ContractStatus).find((status) => status === options.search.toUpperCase());
+      where.OR = [
+        { id: { contains: options.search, mode: "insensitive" } },
+        { solutionVersionId: { contains: options.search, mode: "insensitive" } },
+        { agentId: { contains: options.search, mode: "insensitive" } },
+        { agent: { name: { contains: options.search, mode: "insensitive" } } },
+        { agent: { email: { contains: options.search, mode: "insensitive" } } },
+        { solutionVersion: { solution: { name: { contains: options.search, mode: "insensitive" } } } },
+        ...(statusMatch ? [{ status: statusMatch }] : [])
+      ];
+    }
+
+    const [items, total] = await prisma.$transaction([
+      prisma.contract.findMany({
+        where,
+        include: {
+          solutionVersion: { include: { solution: true } },
+          commissions: true,
+          agent: true
+        },
+        orderBy: { createdAt: "desc" },
+        skip: options.skip,
+        take: options.limit
+      }),
+      prisma.contract.count({ where })
+    ]);
+
+    return toPaginatedResponse(items, total, options.page, options.limit);
   }
 };

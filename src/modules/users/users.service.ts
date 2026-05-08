@@ -4,6 +4,7 @@ import { prisma } from "../../lib/prisma.js";
 import { hashToken, signAccessToken, signRefreshToken, verifyRefreshToken } from "../../lib/auth.js";
 import { createAuditLog } from "../../services/audit.service.js";
 import { AuditAction } from "@prisma/client";
+import { ListQueryOptions, toPaginatedResponse } from "../../lib/pagination.js";
 
 const MAX_FAILED_LOGINS = Number(process.env.MAX_FAILED_LOGINS || 5);
 const LOCKOUT_MINUTES = Number(process.env.LOGIN_LOCKOUT_MINUTES || 15);
@@ -110,14 +111,34 @@ export const userService = {
     });
   },
 
-  async listUsers() {
-    return prisma.user.findMany({
-      select: {
-        ...safeUserSelect,
-        manager: { select: safeUserSelect },
-        team: { select: safeUserSelect }
-      }
-    });
+  async listUsers(options: ListQueryOptions) {
+    const roleMatch = Object.values(Role).find((role) => role.includes(options.search.toUpperCase()));
+    const where = options.search
+      ? {
+          OR: [
+            { name: { contains: options.search, mode: "insensitive" as const } },
+            { email: { contains: options.search, mode: "insensitive" as const } },
+            ...(roleMatch ? [{ role: roleMatch }] : [])
+          ]
+        }
+      : undefined;
+
+    const [items, total] = await prisma.$transaction([
+      prisma.user.findMany({
+        where,
+        select: {
+          ...safeUserSelect,
+          manager: { select: safeUserSelect },
+          team: { select: safeUserSelect }
+        },
+        orderBy: { createdAt: "desc" },
+        skip: options.skip,
+        take: options.limit
+      }),
+      prisma.user.count({ where })
+    ]);
+
+    return toPaginatedResponse(items, total, options.page, options.limit);
   },
 
   async updateUser(id: string, patch: { name?: string; managerId?: string | null }, performedBy: string) {

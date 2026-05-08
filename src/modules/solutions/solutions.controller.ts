@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { z } from "zod";
 import { AuthRequest } from "../../middleware/auth.js";
 import { solutionsService } from "./solutions.service.js";
+import { parseListQuery } from "../../lib/pagination.js";
 
 const createSolutionSchema = z.object({ name: z.string().min(1) });
 const createVersionSchema = z.object({
@@ -13,6 +14,10 @@ const createVersionSchema = z.object({
 });
 
 export const solutionsController = {
+  async listSolutions(req: Request, res: Response) {
+    return res.json(await solutionsService.listSolutions(parseListQuery(req.query)));
+  },
+
   async createSolution(req: Request, res: Response) {
     const { name } = createSolutionSchema.parse(req.body);
     const performedBy = (req as AuthRequest).user!.userId;
@@ -28,6 +33,6 @@ export const solutionsController = {
   },
 
   async listVersions(req: Request, res: Response) {
-    return res.json(await solutionsService.listVersions(String(req.params.id)));
+    return res.json(await solutionsService.listVersions(String(req.params.id), parseListQuery(req.query)));
   }
 };

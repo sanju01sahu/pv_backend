@@ -5,3 +5,5 @@ dist
 package-lock.json
 /generated/prisma
 api-check-results.json
+pv_frontend
+testresult.json

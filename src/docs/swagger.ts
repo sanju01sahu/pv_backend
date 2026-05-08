@@ -1,6 +1,11 @@
 import swaggerJsdoc from "swagger-jsdoc";
 
 const jsonContent = { "application/json": { schema: { type: "object", additionalProperties: true } } };
+const listQueryParameters = [
+  { name: "search", in: "query", required: false, schema: { type: "string" }, description: "Case-insensitive text search." },
+  { name: "page", in: "query", required: false, schema: { type: "integer", minimum: 1, default: 1 } },
+  { name: "limit", in: "query", required: false, schema: { type: "integer", minimum: 1, maximum: 100, default: 10 } }
+] as const;
 const port = process.env.PORT || "3000";
 const serverUrl =
   process.env.SWAGGER_SERVER_URL ||
@@ -365,6 +370,97 @@ const options: swaggerJsdoc.Options = {
           },
           required: ["id", "entityType", "entityId", "action", "performedBy", "timestamp"]
         },
+        PaginationMeta: {
+          type: "object",
+          properties: {
+            page: { type: "integer", minimum: 1, example: 1 },
+            limit: { type: "integer", minimum: 1, maximum: 100, example: 10 },
+            total: { type: "integer", minimum: 0, example: 57 },
+            totalPages: { type: "integer", minimum: 0, example: 6 }
+          },
+          required: ["page", "limit", "total", "totalPages"]
+        },
+        ContractListItem: {
+          allOf: [
+            { $ref: "#/components/schemas/Contract" },
+            {
+              type: "object",
+              properties: {
+                agent: { $ref: "#/components/schemas/User" },
+                solutionVersion: { $ref: "#/components/schemas/SolutionVersion" },
+                commissions: { type: "array", items: { $ref: "#/components/schemas/Commission" } }
+              }
+            }
+          ]
+        },
+        CommissionListItem: {
+          allOf: [
+            { $ref: "#/components/schemas/Commission" },
+            {
+              type: "object",
+              properties: {
+                user: { $ref: "#/components/schemas/User" },
+                contract: { $ref: "#/components/schemas/Contract" }
+              }
+            }
+          ]
+        },
+        UserListResponse: {
+          type: "object",
+          properties: {
+            items: { type: "array", items: { $ref: "#/components/schemas/UserWithHierarchy" } },
+            pagination: { $ref: "#/components/schemas/PaginationMeta" }
+          },
+          required: ["items", "pagination"]
+        },
+        SolutionListResponse: {
+          type: "object",
+          properties: {
+            items: { type: "array", items: { $ref: "#/components/schemas/Solution" } },
+            pagination: { $ref: "#/components/schemas/PaginationMeta" }
+          },
+          required: ["items", "pagination"]
+        },
+        SolutionVersionListResponse: {
+          type: "object",
+          properties: {
+            items: { type: "array", items: { $ref: "#/components/schemas/SolutionVersion" } },
+            pagination: { $ref: "#/components/schemas/PaginationMeta" }
+          },
+          required: ["items", "pagination"]
+        },
+        ContractListResponse: {
+          type: "object",
+          properties: {
+            items: { type: "array", items: { $ref: "#/components/schemas/ContractListItem" } },
+            pagination: { $ref: "#/components/schemas/PaginationMeta" }
+          },
+          required: ["items", "pagination"]
+        },
+        CommissionListResponse: {
+          type: "object",
+          properties: {
+            items: { type: "array", items: { $ref: "#/components/schemas/CommissionListItem" } },
+            pagination: { $ref: "#/components/schemas/PaginationMeta" }
+          },
+          required: ["items", "pagination"]
+        },
+        PaymentListResponse: {
+          type: "object",
+          properties: {
+            items: { type: "array", items: { $ref: "#/components/schemas/PaymentListItem" } },
+            pagination: { $ref: "#/components/schemas/PaginationMeta" }
+          },
+          required: ["items", "pagination"]
+        },
+        AuditLogListResponse: {
+          type: "object",
+          properties: {
+            items: { type: "array", items: { $ref: "#/components/schemas/AuditLog" } },
+            pagination: { $ref: "#/components/schemas/PaginationMeta" }
+          },
+          required: ["items", "pagination"]
+        },
         MonthlyEarningsItem: {
           type: "object",
           properties: {
@@ -492,8 +588,9 @@ const options: swaggerJsdoc.Options = {
         get: {
           tags: ["Users"],
           summary: "List users",
+          parameters: [...listQueryParameters],
           responses: {
-            "200": { description: "List", content: { "application/json": { schema: { type: "array", items: { $ref: "#/components/schemas/UserWithHierarchy" } } } } },
+            "200": { description: "List", content: { "application/json": { schema: { $ref: "#/components/schemas/UserListResponse" } } } },
             "401": { description: "Unauthorized", content: { "application/json": { schema: { $ref: "#/components/schemas/ErrorResponse" } } } }
           }
         }
@@ -515,6 +612,14 @@ const options: swaggerJsdoc.Options = {
         }
       },
       "/solutions": {
+        get: {
+          tags: ["Solutions"],
+          summary: "List solutions",
+          parameters: [...listQueryParameters],
+          responses: {
+            "200": { description: "List", content: { "application/json": { schema: { $ref: "#/components/schemas/SolutionListResponse" } } } }
+          }
+        },
         post: {
           tags: ["Solutions"],
           summary: "Create solution",
@@ -545,9 +650,9 @@ const options: swaggerJsdoc.Options = {
         get: {
           tags: ["Solutions"],
           summary: "List versions",
-          parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid", example: "2be591f8-4ff9-4dce-bb3d-9f863fddf5c5" } }],
+          parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid", example: "2be591f8-4ff9-4dce-bb3d-9f863fddf5c5" } }, ...listQueryParameters],
           responses: {
-            "200": { description: "List", content: { "application/json": { schema: { type: "array", items: { $ref: "#/components/schemas/SolutionVersion" } } } } }
+            "200": { description: "List", content: { "application/json": { schema: { $ref: "#/components/schemas/SolutionVersionListResponse" } } } }
           }
         }
       },
@@ -566,8 +671,9 @@ const options: swaggerJsdoc.Options = {
         get: {
           tags: ["Contracts"],
           summary: "List contracts",
+          parameters: [...listQueryParameters],
           responses: {
-            "200": { description: "List", content: jsonContent }
+            "200": { description: "List", content: { "application/json": { schema: { $ref: "#/components/schemas/ContractListResponse" } } } }
           }
         }
       },
@@ -575,8 +681,9 @@ const options: swaggerJsdoc.Options = {
         get: {
           tags: ["Commissions"],
           summary: "List commissions",
+          parameters: [...listQueryParameters],
           responses: {
-            "200": { description: "List", content: { "application/json": { schema: { type: "array", items: { $ref: "#/components/schemas/Commission" } } } } }
+            "200": { description: "List", content: { "application/json": { schema: { $ref: "#/components/schemas/CommissionListResponse" } } } }
           }
         }
       },
@@ -584,9 +691,9 @@ const options: swaggerJsdoc.Options = {
         get: {
           tags: ["Commissions"],
           summary: "List commissions by user",
-          parameters: [{ name: "userId", in: "path", required: true, schema: { type: "string", format: "uuid", example: "7e23d6e8-8e0f-44fa-8ff1-3db8fca29d2f" } }],
+          parameters: [{ name: "userId", in: "path", required: true, schema: { type: "string", format: "uuid", example: "7e23d6e8-8e0f-44fa-8ff1-3db8fca29d2f" } }, ...listQueryParameters],
           responses: {
-            "200": { description: "List", content: { "application/json": { schema: { type: "array", items: { $ref: "#/components/schemas/Commission" } } } } }
+            "200": { description: "List", content: { "application/json": { schema: { $ref: "#/components/schemas/CommissionListResponse" } } } }
           }
         }
       },
@@ -618,8 +725,9 @@ const options: swaggerJsdoc.Options = {
         get: {
           tags: ["Payments"],
           summary: "List payments",
+          parameters: [...listQueryParameters],
           responses: {
-            "200": { description: "List", content: { "application/json": { schema: { type: "array", items: { $ref: "#/components/schemas/PaymentListItem" } } } } }
+            "200": { description: "List", content: { "application/json": { schema: { $ref: "#/components/schemas/PaymentListResponse" } } } }
           }
         }
       },
@@ -641,8 +749,9 @@ const options: swaggerJsdoc.Options = {
         get: {
           tags: ["Audit"],
           summary: "List audit logs",
+          parameters: [...listQueryParameters],
           responses: {
-            "200": { description: "List", content: { "application/json": { schema: { type: "array", items: { $ref: "#/components/schemas/AuditLog" } } } } }
+            "200": { description: "List", content: { "application/json": { schema: { $ref: "#/components/schemas/AuditLogListResponse" } } } }
           }
         }
       },

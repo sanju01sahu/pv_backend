@@ -2,8 +2,32 @@ import { AuditAction } from "@prisma/client";
 import { Decimal } from "@prisma/client/runtime/library";
 import { prisma } from "../../lib/prisma.js";
 import { createAuditLog } from "../../services/audit.service.js";
+import { ListQueryOptions, toPaginatedResponse } from "../../lib/pagination.js";
 
 export const solutionsService = {
+  async listSolutions(options: ListQueryOptions) {
+    const where = options.search
+      ? {
+          OR: [
+            { name: { contains: options.search, mode: "insensitive" as const } },
+            { id: { contains: options.search, mode: "insensitive" as const } }
+          ]
+        }
+      : undefined;
+
+    const [items, total] = await prisma.$transaction([
+      prisma.solution.findMany({
+        where,
+        orderBy: { name: "asc" },
+        skip: options.skip,
+        take: options.limit
+      }),
+      prisma.solution.count({ where })
+    ]);
+
+    return toPaginatedResponse(items, total, options.page, options.limit);
+  },
+
   async createSolution(name: string, performedBy: string) {
     const solution = await prisma.solution.create({ data: { name } });
     await createAuditLog({ entityType: "Solution", entityId: solution.id, action: AuditAction.CREATE, newValue: solution, performedBy });
@@ -65,7 +89,29 @@ export const solutionsService = {
     return { version, recalculatedContracts: affectedContracts.length, adjustmentsCreated };
   },
 
-  async listVersions(solutionId: string) {
-    return prisma.solutionVersion.findMany({ where: { solutionId }, orderBy: { validFrom: "desc" } });
+  async listVersions(solutionId: string, options: ListQueryOptions) {
+    const where = {
+      solutionId,
+      ...(options.search
+        ? {
+            OR: [
+              { id: { contains: options.search, mode: "insensitive" as const } },
+              { createdBy: { contains: options.search, mode: "insensitive" as const } }
+            ]
+          }
+        : {})
+    };
+
+    const [items, total] = await prisma.$transaction([
+      prisma.solutionVersion.findMany({
+        where,
+        orderBy: { validFrom: "desc" },
+        skip: options.skip,
+        take: options.limit
+      }),
+      prisma.solutionVersion.count({ where })
+    ]);
+
+    return toPaginatedResponse(items, total, options.page, options.limit);
   }
 };
