@@ -2,6 +2,7 @@ import { AuditAction, CommissionType, ContractStatus, Prisma, Role } from "@pris
 import { prisma } from "../../lib/prisma.js";
 import { createAuditLog } from "../../services/audit.service.js";
 import { ListQueryOptions, toPaginatedResponse } from "../../lib/pagination.js";
+import { HttpError } from "../../lib/http-error.js";
 
 export const contractsService = {
   async createContract(input: {
@@ -14,7 +15,7 @@ export const contractsService = {
     agentId?: string;
   }) {
     const agentId = input.callerRole === Role.AGENT ? input.callerUserId : input.agentId;
-    if (!agentId) throw new Error("agentId required for non-agent caller");
+    if (!agentId) throw new HttpError(400, "agentId is required for non-agent caller");
 
     const version = await prisma.solutionVersion.findFirst({
       where: {
@@ -24,7 +25,9 @@ export const contractsService = {
       },
       orderBy: { validFrom: "desc" }
     });
-    if (!version) throw new Error("No active solution version found for contract date");
+    if (!version) {
+      throw new HttpError(404, "No active solution version found for the provided installation date");
+    }
 
     const contract = await prisma.contract.create({
       data: {

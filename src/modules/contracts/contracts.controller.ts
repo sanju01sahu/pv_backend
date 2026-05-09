@@ -4,6 +4,7 @@ import { z } from "zod";
 import { AuthRequest } from "../../middleware/auth.js";
 import { contractsService } from "./contracts.service.js";
 import { parseListQuery } from "../../lib/pagination.js";
+import { sendApiResponse } from "../../lib/api-response.js";
 
 const createSchema = z.object({
   solutionId: z.string().uuid(),
@@ -17,11 +18,20 @@ export const contractsController = {
   async create(req: Request, res: Response) {
     const body = createSchema.parse(req.body);
     const user = (req as AuthRequest).user!;
-    return res.status(201).json(await contractsService.createContract({ ...body, callerRole: user.role, callerUserId: user.userId }));
+    return sendApiResponse(
+      res,
+      "Contract created successfully.",
+      await contractsService.createContract({ ...body, callerRole: user.role, callerUserId: user.userId }),
+      201
+    );
   },
 
   async list(req: Request, res: Response) {
     const user = (req as AuthRequest).user!;
-    return res.json(await contractsService.listContracts(user.role, user.userId, parseListQuery(req.query)));
+    return sendApiResponse(
+      res,
+      "Contracts retrieved successfully.",
+      await contractsService.listContracts(user.role, user.userId, parseListQuery(req.query))
+    );
   }
 };

@@ -81,8 +81,10 @@ export const commissionsService = {
     }
 
     const created = [];
+    let agentsQualified = 0;
     for (const [agentId, agg] of byAgent.entries()) {
       if (agg.count > 10) {
+        agentsQualified += 1;
         const firstContract = contracts.find((c) => c.agentId === agentId);
         if (firstContract) {
           const bonus = await prisma.commission.create({ data: { contractId: firstContract.id, userId: agentId, amount: agg.base.mul(0.15), type: CommissionType.BONUS } });
@@ -93,10 +95,12 @@ export const commissionsService = {
     }
 
     const managers = await prisma.user.findMany({ where: { role: Role.AREA_MANAGER }, include: { team: true } });
+    let managersQualified = 0;
     for (const m of managers) {
       const agentIds = m.team.map((a) => a.id);
       const netContracts = contracts.filter((c) => agentIds.includes(c.agentId));
       if (netContracts.length > 20) {
+        managersQualified += 1;
         const networkCommission = netContracts.flatMap((c) => c.commissions).filter((x) => x.type === CommissionType.BASE).reduce((acc, x) => acc.plus(x.amount), new Decimal(0));
         if (netContracts[0]) {
           const bonus = await prisma.commission.create({ data: { contractId: netContracts[0].id, userId: m.id, amount: networkCommission.mul(0.15), type: CommissionType.BONUS } });
@@ -106,6 +110,30 @@ export const commissionsService = {
       }
     }
 
-    return created;
+    const createdCount = created.length;
+    const monthLabel = `${String(month).padStart(2, "0")}/${year}`;
+    const message =
+      createdCount > 0
+        ? `Bonus run completed for ${monthLabel}. Created ${createdCount} bonus commission entries.`
+        : `Bonus run completed for ${monthLabel}. No bonuses were created because eligibility thresholds were not met.`;
+
+    return {
+      message,
+      createdCount,
+      created,
+      period: {
+        year,
+        month
+      },
+      summary: {
+        installationContractsConsidered: contracts.length,
+        agentsEvaluated: byAgent.size,
+        agentsQualified,
+        managersEvaluated: managers.length,
+        managersQualified,
+        agentRule: "More than 10 installations in month => 15% of agent base commission total",
+        managerRule: "More than 20 network installations in month => 15% of network base commission total"
+      }
+    };
   }
 };

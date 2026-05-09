@@ -23,57 +23,66 @@ export const userService = {
     if (!user) return null;
 
     const now = new Date();
-    const attempt = await prisma.loginAttempt.upsert({
-      where: { userId: user.id },
-      update: {},
-      create: { userId: user.id, failedCount: 0 }
-    });
+    const attempt = await prisma.loginAttempt.findUnique({ where: { userId: user.id } });
 
-    if (attempt.lockedUntil && attempt.lockedUntil > now) {
-      await createAuditLog({
+    if (attempt?.lockedUntil && attempt.lockedUntil > now) {
+      void createAuditLog({
         entityType: "Auth",
         entityId: user.id,
         action: AuditAction.UPDATE,
         oldValue: null,
         newValue: { event: "LOGIN_BLOCKED_LOCKOUT", ipAddress },
         performedBy: user.id
+      }).catch((error) => {
+        console.error("Failed to write login lockout audit log", error);
       });
       return { locked: true as const, lockedUntil: attempt.lockedUntil };
     }
 
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) {
-      const failedCount = attempt.failedCount + 1;
+      const failedCount = (attempt?.failedCount ?? 0) + 1;
       const lockedUntil = failedCount >= MAX_FAILED_LOGINS ? new Date(Date.now() + LOCKOUT_MINUTES * 60 * 1000) : null;
-      await prisma.loginAttempt.update({ where: { userId: user.id }, data: { failedCount, lockedUntil } });
-      await createAuditLog({
-        entityType: "Auth",
-        entityId: user.id,
-        action: AuditAction.UPDATE,
-        oldValue: null,
-        newValue: { event: "LOGIN_FAILED", failedCount, lockedUntil, ipAddress },
-        performedBy: user.id
-      });
+      await Promise.all([
+        attempt
+          ? prisma.loginAttempt.update({ where: { userId: user.id }, data: { failedCount, lockedUntil } })
+          : prisma.loginAttempt.create({ data: { userId: user.id, failedCount, lockedUntil } }),
+        createAuditLog({
+          entityType: "Auth",
+          entityId: user.id,
+          action: AuditAction.UPDATE,
+          oldValue: null,
+          newValue: { event: "LOGIN_FAILED", failedCount, lockedUntil, ipAddress },
+          performedBy: user.id
+        })
+      ]);
       return null;
     }
 
-    await prisma.loginAttempt.update({ where: { userId: user.id }, data: { failedCount: 0, lockedUntil: null } });
     const payload = { userId: user.id, role: user.role };
     const accessToken = signAccessToken(payload);
     const refreshToken = signRefreshToken(payload);
 
-    await prisma.refreshToken.create({
-      data: { userId: user.id, tokenHash: hashToken(refreshToken), expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) }
-    });
-
-    await createAuditLog({
-      entityType: "Auth",
-      entityId: user.id,
-      action: AuditAction.CREATE,
-      oldValue: null,
-      newValue: { event: "LOGIN_SUCCESS", ipAddress },
-      performedBy: user.id
-    });
+    await Promise.all([
+      attempt && (attempt.failedCount > 0 || attempt.lockedUntil)
+        ? prisma.loginAttempt.update({ where: { userId: user.id }, data: { failedCount: 0, lockedUntil: null } })
+        : Promise.resolve(),
+      prisma.refreshToken.create({
+        data: {
+          userId: user.id,
+          tokenHash: hashToken(refreshToken),
+          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+        }
+      }),
+      createAuditLog({
+        entityType: "Auth",
+        entityId: user.id,
+        action: AuditAction.CREATE,
+        oldValue: null,
+        newValue: { event: "LOGIN_SUCCESS", ipAddress },
+        performedBy: user.id
+      })
+    ]);
 
     return { accessToken, refreshToken };
   },
