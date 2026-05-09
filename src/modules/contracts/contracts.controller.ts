@@ -8,7 +8,15 @@ import { sendApiResponse } from "../../lib/api-response.js";
 
 const createSchema = z.object({
   solutionId: z.string().uuid(),
-  customerDetails: z.any(),
+  customerDetails: z
+    .object({
+      name: z.string().min(2),
+      phone: z.string().optional(),
+      email: z.string().email().optional(),
+      site: z.string().optional(),
+      city: z.string().optional()
+    })
+    .passthrough(),
   installationDate: z.coerce.date(),
   status: z.enum([ContractStatus.DRAFT, ContractStatus.ACTIVE, ContractStatus.COMPLETED, ContractStatus.CANCELLED]).default(ContractStatus.ACTIVE),
   agentId: z.string().uuid().optional()
