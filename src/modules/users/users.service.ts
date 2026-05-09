@@ -5,6 +5,7 @@ import { hashToken, signAccessToken, signRefreshToken, verifyRefreshToken } from
 import { createAuditLog } from "../../services/audit.service.js";
 import { AuditAction } from "@prisma/client";
 import { ListQueryOptions, toPaginatedResponse } from "../../lib/pagination.js";
+import { HttpError } from "../../lib/http-error.js";
 
 const MAX_FAILED_LOGINS = Number(process.env.MAX_FAILED_LOGINS || 5);
 const LOCKOUT_MINUTES = Number(process.env.LOGIN_LOCKOUT_MINUTES || 15);
@@ -150,11 +151,46 @@ export const userService = {
     return toPaginatedResponse(items, total, options.page, options.limit);
   },
 
-  async updateUser(id: string, patch: { name?: string; managerId?: string | null }, performedBy: string) {
+  async updateUser(
+    id: string,
+    patch: { name?: string; email?: string; role?: Role; managerId?: string | null; password?: string },
+    performedBy: string
+  ) {
     const before = await prisma.user.findUnique({ where: { id } });
+    if (!before) throw new HttpError(404, "User not found.");
+
+    const nextRole = patch.role ?? before.role;
+    const requestedManagerId = patch.managerId === undefined ? before.managerId : patch.managerId;
+    const nextManagerId = nextRole === Role.AGENT ? requestedManagerId : null;
+
+    if (nextManagerId === id) {
+      throw new HttpError(400, "A user cannot be assigned as their own manager.");
+    }
+
+    if (nextRole === Role.AGENT && !nextManagerId) {
+      throw new HttpError(400, "Agent users must be assigned to a manager.");
+    }
+
+    if (nextManagerId) {
+      const manager = await prisma.user.findUnique({
+        where: { id: nextManagerId },
+        select: { id: true, role: true }
+      });
+      if (!manager || (manager.role !== Role.ADMIN && manager.role !== Role.AREA_MANAGER)) {
+        throw new HttpError(400, "Assigned manager must be an admin or area manager.");
+      }
+    }
+
+    const passwordHash = patch.password ? await bcrypt.hash(patch.password, 10) : undefined;
     const updated = await prisma.user.update({
       where: { id },
-      data: patch,
+      data: {
+        ...(patch.name !== undefined ? { name: patch.name } : {}),
+        ...(patch.email !== undefined ? { email: patch.email } : {}),
+        ...(patch.role !== undefined ? { role: patch.role } : {}),
+        ...(patch.managerId !== undefined || patch.role !== undefined ? { managerId: nextManagerId } : {}),
+        ...(passwordHash ? { passwordHash } : {})
+      },
       select: safeUserSelect
     });
 
@@ -165,6 +201,22 @@ export const userService = {
         action: AuditAction.UPDATE,
         oldValue: { managerId: before.managerId },
         newValue: { managerId: updated.managerId },
+        performedBy
+      });
+    }
+
+    if (patch.password) {
+      await prisma.refreshToken.updateMany({
+        where: { userId: updated.id, revokedAt: null },
+        data: { revokedAt: new Date() }
+      });
+
+      await createAuditLog({
+        entityType: "Auth",
+        entityId: updated.id,
+        action: AuditAction.UPDATE,
+        oldValue: null,
+        newValue: { event: "PASSWORD_RESET_BY_ADMIN" },
         performedBy
       });
     }

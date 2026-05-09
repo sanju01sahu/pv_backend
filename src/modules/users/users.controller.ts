@@ -22,7 +22,23 @@ const createSchema = z.object({
   role: z.enum([Role.ADMIN, Role.AREA_MANAGER, Role.AGENT]),
   managerId: z.string().uuid().optional()
 });
-const patchSchema = z.object({ name: z.string().optional(), managerId: z.string().uuid().nullable().optional() });
+const patchSchema = z
+  .object({
+    name: z.string().min(2).optional(),
+    email: z.string().email().optional(),
+    role: z.enum([Role.ADMIN, Role.AREA_MANAGER, Role.AGENT]).optional(),
+    managerId: z.string().uuid().nullable().optional(),
+    password: passwordSchema.optional()
+  })
+  .refine(
+    (value) =>
+      value.name !== undefined ||
+      value.email !== undefined ||
+      value.role !== undefined ||
+      value.managerId !== undefined ||
+      value.password !== undefined,
+    { message: "At least one field is required for update." }
+  );
 
 export const userController = {
   async login(req: Request, res: Response) {
