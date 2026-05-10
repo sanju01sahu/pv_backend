@@ -1,31 +1,53 @@
-import { CommissionType, ContractStatus, Role } from "@prisma/client";
+import { CommissionType, ContractStatus, Prisma, Role } from "@prisma/client";
 import { Decimal } from "@prisma/client/runtime/library";
 import { prisma } from "../../lib/prisma.js";
 import { createAuditLog } from "../../services/audit.service.js";
 import { AuditAction } from "@prisma/client";
-import { ListQueryOptions, toPaginatedResponse } from "../../lib/pagination.js";
+import { ListQueryOptions, toExclusiveEndDate, toPaginatedResponse } from "../../lib/pagination.js";
 
 export const commissionsService = {
   async listAll(options: ListQueryOptions) {
     const typeMatch = Object.values(CommissionType).find((type) => type === options.search.toUpperCase());
-    const where = options.search
-      ? {
-          OR: [
-            { id: { contains: options.search, mode: "insensitive" as const } },
-            { contractId: { contains: options.search, mode: "insensitive" as const } },
-            { userId: { contains: options.search, mode: "insensitive" as const } },
-            { user: { name: { contains: options.search, mode: "insensitive" as const } } },
-            { user: { email: { contains: options.search, mode: "insensitive" as const } } },
-            ...(typeMatch ? [{ type: typeMatch }] : [])
-          ]
+    const parsedDate = new Date(options.search);
+    const hasDateSearch = !Number.isNaN(parsedDate.getTime());
+    const dateStart = hasDateSearch
+      ? new Date(Date.UTC(parsedDate.getUTCFullYear(), parsedDate.getUTCMonth(), parsedDate.getUTCDate()))
+      : null;
+    const dateEnd = hasDateSearch && dateStart ? new Date(dateStart.getTime() + 24 * 60 * 60 * 1000) : null;
+    const endDateExclusive = toExclusiveEndDate(options.endDate);
+    const whereClauses: Prisma.CommissionWhereInput[] = [];
+    if (options.search) {
+      whereClauses.push({
+        OR: [
+          { id: { contains: options.search, mode: "insensitive" as const } },
+          { contractId: { contains: options.search, mode: "insensitive" as const } },
+          { userId: { contains: options.search, mode: "insensitive" as const } },
+          { user: { name: { contains: options.search, mode: "insensitive" as const } } },
+          { user: { email: { contains: options.search, mode: "insensitive" as const } } },
+          ...(hasDateSearch && dateStart && dateEnd ? [{ createdAt: { gte: dateStart, lt: dateEnd } }] : []),
+          ...(typeMatch ? [{ type: typeMatch }] : [])
+        ]
+      });
+    }
+    if (options.startDate || endDateExclusive) {
+      whereClauses.push({
+        createdAt: {
+          ...(options.startDate ? { gte: options.startDate } : {}),
+          ...(endDateExclusive ? { lt: endDateExclusive } : {})
         }
-      : undefined;
+      });
+    }
+    const where = whereClauses.length > 0 ? { AND: whereClauses } : undefined;
+    const orderBy: Prisma.CommissionOrderByWithRelationInput =
+      options.sortBy === "name"
+        ? { user: { name: options.sortOrder } }
+        : { createdAt: options.sortBy === "createdAt" ? options.sortOrder : "desc" };
 
     const [items, total] = await prisma.$transaction([
       prisma.commission.findMany({
         where,
         include: { user: true, contract: true },
-        orderBy: { createdAt: "desc" },
+        orderBy,
         skip: options.skip,
         take: options.limit
       }),
@@ -37,24 +59,41 @@ export const commissionsService = {
 
   async listByUser(userId: string, options: ListQueryOptions) {
     const typeMatch = Object.values(CommissionType).find((type) => type === options.search.toUpperCase());
-    const where = {
-      userId,
-      ...(options.search
-        ? {
-            OR: [
-              { id: { contains: options.search, mode: "insensitive" as const } },
-              { contractId: { contains: options.search, mode: "insensitive" as const } },
-              ...(typeMatch ? [{ type: typeMatch }] : [])
-            ]
-          }
-        : {})
-    };
+    const parsedDate = new Date(options.search);
+    const hasDateSearch = !Number.isNaN(parsedDate.getTime());
+    const dateStart = hasDateSearch
+      ? new Date(Date.UTC(parsedDate.getUTCFullYear(), parsedDate.getUTCMonth(), parsedDate.getUTCDate()))
+      : null;
+    const dateEnd = hasDateSearch && dateStart ? new Date(dateStart.getTime() + 24 * 60 * 60 * 1000) : null;
+    const endDateExclusive = toExclusiveEndDate(options.endDate);
+    const whereClauses: Prisma.CommissionWhereInput[] = [{ userId }];
+    if (options.search) {
+      whereClauses.push({
+        OR: [
+          { id: { contains: options.search, mode: "insensitive" as const } },
+          { contractId: { contains: options.search, mode: "insensitive" as const } },
+          ...(hasDateSearch && dateStart && dateEnd ? [{ createdAt: { gte: dateStart, lt: dateEnd } }] : []),
+          ...(typeMatch ? [{ type: typeMatch }] : [])
+        ]
+      });
+    }
+    if (options.startDate || endDateExclusive) {
+      whereClauses.push({
+        createdAt: {
+          ...(options.startDate ? { gte: options.startDate } : {}),
+          ...(endDateExclusive ? { lt: endDateExclusive } : {})
+        }
+      });
+    }
+    const where: Prisma.CommissionWhereInput = { AND: whereClauses };
+    const orderBy: Prisma.CommissionOrderByWithRelationInput =
+      options.sortBy === "createdAt" ? { createdAt: options.sortOrder } : { createdAt: "desc" };
 
     const [items, total] = await prisma.$transaction([
       prisma.commission.findMany({
         where,
         include: { contract: true, user: true },
-        orderBy: { createdAt: "desc" },
+        orderBy,
         skip: options.skip,
         take: options.limit
       }),

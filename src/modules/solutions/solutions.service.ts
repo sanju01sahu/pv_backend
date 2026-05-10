@@ -1,24 +1,40 @@
 import { AuditAction } from "@prisma/client";
 import { Decimal } from "@prisma/client/runtime/library";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 import { createAuditLog } from "../../services/audit.service.js";
-import { ListQueryOptions, toPaginatedResponse } from "../../lib/pagination.js";
+import { ListQueryOptions, toExclusiveEndDate, toPaginatedResponse } from "../../lib/pagination.js";
 
 export const solutionsService = {
   async listSolutions(options: ListQueryOptions) {
-    const where = options.search
-      ? {
-          OR: [
-            { name: { contains: options.search, mode: "insensitive" as const } },
-            { id: { contains: options.search, mode: "insensitive" as const } }
-          ]
+    const endDateExclusive = toExclusiveEndDate(options.endDate);
+    const whereClauses: Prisma.SolutionWhereInput[] = [];
+    if (options.search) {
+      whereClauses.push({
+        OR: [
+          { name: { contains: options.search, mode: "insensitive" as const } },
+          { id: { contains: options.search, mode: "insensitive" as const } }
+        ]
+      });
+    }
+    if (options.startDate || endDateExclusive) {
+      whereClauses.push({
+        createdAt: {
+          ...(options.startDate ? { gte: options.startDate } : {}),
+          ...(endDateExclusive ? { lt: endDateExclusive } : {})
         }
-      : undefined;
+      });
+    }
+    const where = whereClauses.length > 0 ? { AND: whereClauses } : undefined;
+    const orderBy: Prisma.SolutionOrderByWithRelationInput =
+      options.sortBy === "createdAt"
+        ? { createdAt: options.sortOrder }
+        : { name: options.sortBy === "name" ? options.sortOrder : "asc" };
 
     const [items, total] = await prisma.$transaction([
       prisma.solution.findMany({
         where,
-        orderBy: { name: "asc" },
+        orderBy,
         skip: options.skip,
         take: options.limit
       }),
@@ -90,22 +106,34 @@ export const solutionsService = {
   },
 
   async listVersions(solutionId: string, options: ListQueryOptions) {
-    const where = {
-      solutionId,
-      ...(options.search
-        ? {
-            OR: [
-              { id: { contains: options.search, mode: "insensitive" as const } },
-              { createdBy: { contains: options.search, mode: "insensitive" as const } }
-            ]
-          }
-        : {})
-    };
+    const endDateExclusive = toExclusiveEndDate(options.endDate);
+    const whereClauses: Prisma.SolutionVersionWhereInput[] = [{ solutionId }];
+    if (options.search) {
+      whereClauses.push({
+        OR: [
+          { id: { contains: options.search, mode: "insensitive" as const } },
+          { createdBy: { contains: options.search, mode: "insensitive" as const } }
+        ]
+      });
+    }
+    if (options.startDate || endDateExclusive) {
+      whereClauses.push({
+        validFrom: {
+          ...(options.startDate ? { gte: options.startDate } : {}),
+          ...(endDateExclusive ? { lt: endDateExclusive } : {})
+        }
+      });
+    }
+    const where: Prisma.SolutionVersionWhereInput = { AND: whereClauses };
+    const orderBy: Prisma.SolutionVersionOrderByWithRelationInput =
+      options.sortBy === "createdAt"
+        ? { createdAt: options.sortOrder }
+        : { validFrom: options.sortBy === "validFrom" ? options.sortOrder : "desc" };
 
     const [items, total] = await prisma.$transaction([
       prisma.solutionVersion.findMany({
         where,
-        orderBy: { validFrom: "desc" },
+        orderBy,
         skip: options.skip,
         take: options.limit
       }),

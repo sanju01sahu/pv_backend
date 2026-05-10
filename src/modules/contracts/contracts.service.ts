@@ -1,7 +1,7 @@
 import { AuditAction, CommissionType, ContractStatus, Prisma, Role } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 import { createAuditLog } from "../../services/audit.service.js";
-import { ListQueryOptions, toPaginatedResponse } from "../../lib/pagination.js";
+import { ListQueryOptions, toExclusiveEndDate, toPaginatedResponse } from "../../lib/pagination.js";
 import { HttpError } from "../../lib/http-error.js";
 
 export const contractsService = {
@@ -48,20 +48,54 @@ export const contractsService = {
   },
 
   async listContracts(callerRole: Role, callerUserId: string, options: ListQueryOptions) {
-    const where: Prisma.ContractWhereInput = callerRole === Role.AGENT ? { agentId: callerUserId } : {};
+    const whereClauses: Prisma.ContractWhereInput[] = [];
+    if (callerRole === Role.AGENT) {
+      whereClauses.push({ agentId: callerUserId });
+    }
+    const statusMatch = Object.values(ContractStatus).find((status) => status === options.status.toUpperCase());
+    const endDateExclusive = toExclusiveEndDate(options.endDate);
 
     if (options.search) {
-      const statusMatch = Object.values(ContractStatus).find((status) => status === options.search.toUpperCase());
-      where.OR = [
-        { id: { contains: options.search, mode: "insensitive" } },
-        { solutionVersionId: { contains: options.search, mode: "insensitive" } },
-        { agentId: { contains: options.search, mode: "insensitive" } },
-        { agent: { name: { contains: options.search, mode: "insensitive" } } },
-        { agent: { email: { contains: options.search, mode: "insensitive" } } },
-        { solutionVersion: { solution: { name: { contains: options.search, mode: "insensitive" } } } },
-        ...(statusMatch ? [{ status: statusMatch }] : [])
-      ];
+      const parsedDate = new Date(options.search);
+      const hasDateSearch = !Number.isNaN(parsedDate.getTime());
+      const dateStart = hasDateSearch
+        ? new Date(Date.UTC(parsedDate.getUTCFullYear(), parsedDate.getUTCMonth(), parsedDate.getUTCDate()))
+        : null;
+      const dateEnd = hasDateSearch && dateStart ? new Date(dateStart.getTime() + 24 * 60 * 60 * 1000) : null;
+
+      const searchStatusMatch = Object.values(ContractStatus).find((status) => status === options.search.toUpperCase());
+      whereClauses.push({
+        OR: [
+          { id: { contains: options.search, mode: "insensitive" } },
+          { solutionVersionId: { contains: options.search, mode: "insensitive" } },
+          { agentId: { contains: options.search, mode: "insensitive" } },
+          { agent: { name: { contains: options.search, mode: "insensitive" } } },
+          { agent: { email: { contains: options.search, mode: "insensitive" } } },
+          { solutionVersion: { solution: { name: { contains: options.search, mode: "insensitive" } } } },
+          ...(hasDateSearch && dateStart && dateEnd ? [{ installationDate: { gte: dateStart, lt: dateEnd } }] : []),
+          ...(searchStatusMatch ? [{ status: searchStatusMatch }] : [])
+        ]
+      });
     }
+
+    if (statusMatch) {
+      whereClauses.push({ status: statusMatch });
+    }
+
+    if (options.startDate || endDateExclusive) {
+      whereClauses.push({
+        installationDate: {
+          ...(options.startDate ? { gte: options.startDate } : {}),
+          ...(endDateExclusive ? { lt: endDateExclusive } : {})
+        }
+      });
+    }
+
+    const where: Prisma.ContractWhereInput = whereClauses.length > 0 ? { AND: whereClauses } : {};
+    const orderBy: Prisma.ContractOrderByWithRelationInput =
+      options.sortBy === "installationDate"
+        ? { installationDate: options.sortOrder }
+        : { createdAt: options.sortBy === "createdAt" ? options.sortOrder : "desc" };
 
     const [items, total] = await prisma.$transaction([
       prisma.contract.findMany({
@@ -71,7 +105,7 @@ export const contractsService = {
           commissions: true,
           agent: true
         },
-        orderBy: { createdAt: "desc" },
+        orderBy,
         skip: options.skip,
         take: options.limit
       }),

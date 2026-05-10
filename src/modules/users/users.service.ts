@@ -1,10 +1,10 @@
 import bcrypt from "bcryptjs";
-import { Role } from "@prisma/client";
+import { Prisma, Role } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 import { hashToken, signAccessToken, signRefreshToken, verifyRefreshToken } from "../../lib/auth.js";
 import { createAuditLog } from "../../services/audit.service.js";
 import { AuditAction } from "@prisma/client";
-import { ListQueryOptions, toPaginatedResponse } from "../../lib/pagination.js";
+import { ListQueryOptions, toExclusiveEndDate, toPaginatedResponse } from "../../lib/pagination.js";
 import { HttpError } from "../../lib/http-error.js";
 
 const MAX_FAILED_LOGINS = Number(process.env.MAX_FAILED_LOGINS || 5);
@@ -123,15 +123,40 @@ export const userService = {
 
   async listUsers(options: ListQueryOptions) {
     const roleMatch = Object.values(Role).find((role) => role.includes(options.search.toUpperCase()));
-    const where = options.search
-      ? {
-          OR: [
-            { name: { contains: options.search, mode: "insensitive" as const } },
-            { email: { contains: options.search, mode: "insensitive" as const } },
-            ...(roleMatch ? [{ role: roleMatch }] : [])
-          ]
+    const statusRoleMatch = Object.values(Role).find((role) => role === options.status.toUpperCase());
+    const endDateExclusive = toExclusiveEndDate(options.endDate);
+    const whereClauses: Prisma.UserWhereInput[] = [];
+
+    if (options.search) {
+      whereClauses.push({
+        OR: [
+          { name: { contains: options.search, mode: "insensitive" as const } },
+          { email: { contains: options.search, mode: "insensitive" as const } },
+          { manager: { name: { contains: options.search, mode: "insensitive" as const } } },
+          { manager: { email: { contains: options.search, mode: "insensitive" as const } } },
+          ...(roleMatch ? [{ role: roleMatch }] : [])
+        ]
+      });
+    }
+
+    if (statusRoleMatch) {
+      whereClauses.push({ role: statusRoleMatch });
+    }
+
+    if (options.startDate || endDateExclusive) {
+      whereClauses.push({
+        createdAt: {
+          ...(options.startDate ? { gte: options.startDate } : {}),
+          ...(endDateExclusive ? { lt: endDateExclusive } : {})
         }
-      : undefined;
+      });
+    }
+
+    const where = whereClauses.length > 0 ? { AND: whereClauses } : undefined;
+    const orderBy: Prisma.UserOrderByWithRelationInput =
+      options.sortBy === "name"
+        ? { name: options.sortOrder }
+        : { createdAt: options.sortBy === "createdAt" ? options.sortOrder : "desc" };
 
     const [items, total] = await prisma.$transaction([
       prisma.user.findMany({
@@ -141,7 +166,7 @@ export const userService = {
           manager: { select: safeUserSelect },
           team: { select: safeUserSelect }
         },
-        orderBy: { createdAt: "desc" },
+        orderBy,
         skip: options.skip,
         take: options.limit
       }),

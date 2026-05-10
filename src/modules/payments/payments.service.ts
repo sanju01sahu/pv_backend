@@ -1,8 +1,8 @@
-import { AuditAction, PaymentMethod, PaymentStatus } from "@prisma/client";
+import { AuditAction, PaymentMethod, PaymentStatus, Prisma } from "@prisma/client";
 import { Decimal } from "@prisma/client/runtime/library";
 import { prisma } from "../../lib/prisma.js";
 import { createAuditLog } from "../../services/audit.service.js";
-import { ListQueryOptions, toPaginatedResponse } from "../../lib/pagination.js";
+import { ListQueryOptions, toExclusiveEndDate, toPaginatedResponse } from "../../lib/pagination.js";
 
 export function derivePaymentStatus(total: Decimal, paid: Decimal, forced?: PaymentStatus | null) {
   if (forced === PaymentStatus.CANCELLED || forced === PaymentStatus.DISPUTED) return forced;
@@ -39,23 +39,52 @@ export const paymentsService = {
 
   async listPayments(options: ListQueryOptions) {
     const statusMatch = Object.values(PaymentStatus).find((status) => status === options.search.toUpperCase());
-    const where = options.search
-      ? {
-          OR: [
-            { id: { contains: options.search, mode: "insensitive" as const } },
-            { userId: { contains: options.search, mode: "insensitive" as const } },
-            { user: { name: { contains: options.search, mode: "insensitive" as const } } },
-            { user: { email: { contains: options.search, mode: "insensitive" as const } } },
-            ...(statusMatch ? [{ status: statusMatch }] : [])
-          ]
+    const explicitStatusMatch = Object.values(PaymentStatus).find((status) => status === options.status.toUpperCase());
+    const parsedAmount = Number(options.search);
+    const hasAmountSearch = Number.isFinite(parsedAmount);
+    const parsedDate = new Date(options.search);
+    const hasDateSearch = !Number.isNaN(parsedDate.getTime());
+    const dateStart = hasDateSearch
+      ? new Date(Date.UTC(parsedDate.getUTCFullYear(), parsedDate.getUTCMonth(), parsedDate.getUTCDate()))
+      : null;
+    const dateEnd = hasDateSearch && dateStart ? new Date(dateStart.getTime() + 24 * 60 * 60 * 1000) : null;
+    const endDateExclusive = toExclusiveEndDate(options.endDate);
+    const whereClauses: Prisma.PaymentWhereInput[] = [];
+    if (options.search) {
+      whereClauses.push({
+        OR: [
+          { id: { contains: options.search, mode: "insensitive" as const } },
+          { userId: { contains: options.search, mode: "insensitive" as const } },
+          { user: { name: { contains: options.search, mode: "insensitive" as const } } },
+          { user: { email: { contains: options.search, mode: "insensitive" as const } } },
+          ...(hasAmountSearch ? [{ totalAmount: parsedAmount }] : []),
+          ...(hasDateSearch && dateStart && dateEnd ? [{ createdAt: { gte: dateStart, lt: dateEnd } }] : []),
+          ...(statusMatch ? [{ status: statusMatch }] : [])
+        ]
+      });
+    }
+    if (explicitStatusMatch) {
+      whereClauses.push({ status: explicitStatusMatch });
+    }
+    if (options.startDate || endDateExclusive) {
+      whereClauses.push({
+        createdAt: {
+          ...(options.startDate ? { gte: options.startDate } : {}),
+          ...(endDateExclusive ? { lt: endDateExclusive } : {})
         }
-      : undefined;
+      });
+    }
+    const where = whereClauses.length > 0 ? { AND: whereClauses } : undefined;
+    const orderBy: Prisma.PaymentOrderByWithRelationInput =
+      options.sortBy === "name"
+        ? { user: { name: options.sortOrder } }
+        : { createdAt: options.sortBy === "createdAt" ? options.sortOrder : "desc" };
 
     const [payments, total] = await prisma.$transaction([
       prisma.payment.findMany({
         where,
         include: { transactions: true, user: true },
-        orderBy: { createdAt: "desc" },
+        orderBy,
         skip: options.skip,
         take: options.limit
       }),
